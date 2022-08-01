@@ -11,6 +11,64 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
         afterUpdateInstructions(Trigger.New);
     }
 
+    public static void sendEmailMessageWithDeletedOpportunities(
+        Map<Account, List<Opportunity>> accountWithRelatedOpportunities,
+        Opportunity currentOpp
+    ) {
+        List<Messaging.Email> emailList = new List<Messaging.Email>();
+
+        Messaging.SingleEmailMessage message = new Messaging.SingleEmailMessage();
+        message.setToAddresses(new List<String>{ UserInfo.getUserEmail() });
+        message.setSubject('Deleting an Account');
+
+        message.setPlainTextBody(
+            mailBodyGenerator(accountWithRelatedOpportunities, currentOpp)
+        );
+        emailList.add(message);
+
+        Messaging.sendEmail(emailList);
+    }
+
+    public static String mailBodyGenerator(
+        Map<Account, List<Opportunity>> accountWithRelatedOpportunities,
+        Opportunity currentOpp
+    ) {
+        String mailBody;
+
+        Integer lineNumber = 1;
+
+        mailBody =
+            'Hi ' +
+            UserInfo.getFirstName() +
+            ', \n \n' +
+            'Due to deletion of Account ' +
+            currentOpp.Account.Name +
+            ' all next related Opportunities were deleted as well: \n \n';
+
+        for (
+            Integer i = 0;
+            i < accountWithRelatedOpportunities.get(currentOpp.Account).size();
+            i++
+        ) {
+            mailBody +=
+                lineNumber +
+                '. ' +
+                accountWithRelatedOpportunities.get(currentOpp.Account)[i].Id +
+                ',' +
+                accountWithRelatedOpportunities.get(currentOpp.Account)[i]
+                    .Name +
+                ',' +
+                accountWithRelatedOpportunities.get(currentOpp.Account)[i]
+                    .Amount +
+                '\n';
+            lineNumber++;
+        }
+
+        mailBody += '\n\n' + 'Best regards,' + '\n\n' + 'Red Tag Service Team.';
+
+        return mailBody;
+    }
+
     public static void beforeDeleteInstructions(List<Account> deletedAccs) {
         List<Opportunity> oppsToDelete = [
             SELECT Id, Name, Amount, AccountId, Account.Name
@@ -19,23 +77,9 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
             ORDER BY AccountId ASC
         ];
 
-        List<Messaging.Email> emailList = new List<Messaging.Email>();
+        Map<Account, List<Opportunity>> accountWithRelatedOpportunities = new Map<Account, List<Opportunity>>();
 
-        String mailBody;
-
-        Integer lineNumber = 1;
-
-        Messaging.SingleEmailMessage message = new Messaging.SingleEmailMessage();
-        message.setToAddresses(new List<String>{ UserInfo.getUserEmail() });
-        message.setSubject('Deleting an Account');
-
-        mailBody =
-            'Hi ' +
-            UserInfo.getFirstName() +
-            ', \n \n' +
-            'Due to deletion of Account ' +
-            oppsToDelete[0].Account.Name +
-            ' all next related Opportunities were deleted as well: \n \n';
+        List<Opportunity> relatedOpportunitiesToAccount = new List<Opportunity>();
 
         for (Integer i = 0; i < oppsToDelete.size(); i++) {
             Opportunity currentOpp = oppsToDelete[i];
@@ -44,53 +88,31 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
                 i != 0 &&
                 oppsToDelete[i - 1].accountId != currentOpp.accountId
             ) {
-                mailBody +=
-                    '\n\n' +
-                    'Best regards,' +
-                    '\n\n' +
-                    'Red Tag Service Team.';
-
-                message.setPlainTextBody(mailBody);
-                emailList.add(message);
-
-                mailBody = '';
-                lineNumber = 1;
-
-                message = new Messaging.SingleEmailMessage();
-                message.setToAddresses(
-                    new List<String>{ UserInfo.getUserEmail() }
+                accountWithRelatedOpportunities.put(
+                    oppsToDelete[i - 1].Account,
+                    relatedOpportunitiesToAccount
                 );
-                message.setSubject('Deleting an Account');
 
-                mailBody =
-                    'Hi ' +
-                    UserInfo.getFirstName() +
-                    ', \n \n' +
-                    'Due to deletion of Account ' +
-                    currentOpp.Account.Name +
-                    ' all next related Opportunities were deleted as well: \n \n';
+                sendEmailMessageWithDeletedOpportunities(
+                    accountWithRelatedOpportunities,
+                    oppsToDelete[i - 1]
+                );
+
+                relatedOpportunitiesToAccount.clear();
             }
 
-            mailBody +=
-                lineNumber +
-                '. ' +
-                currentOpp.Id +
-                ',' +
-                currentOpp.Name +
-                ',' +
-                currentOpp.Amount +
-                '\n';
-            lineNumber++;
+            relatedOpportunitiesToAccount.add(currentOpp);
         }
 
-        mailBody += '\n\n' + 'Best regards,' + '\n\n' + 'Red Tag Service Team.';
-
-        message.setPlainTextBody(mailBody);
-        emailList.add(message);
-
-        if (!emailList.isEmpty()) {
-            Messaging.sendEmail(emailList);
-        }
+        accountWithRelatedOpportunities.put(
+            oppsToDelete[(oppsToDelete.size() - 1)].Account,
+            relatedOpportunitiesToAccount
+        );
+        sendEmailMessageWithDeletedOpportunities(
+            accountWithRelatedOpportunities,
+            oppsToDelete[(oppsToDelete.size() - 1)]
+        );
+        relatedOpportunitiesToAccount.clear();
 
         if (!oppsToDelete.isEmpty()) {
             delete oppsToDelete;
