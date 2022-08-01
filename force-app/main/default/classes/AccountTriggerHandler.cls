@@ -11,64 +11,6 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
         afterUpdateInstructions(Trigger.New);
     }
 
-    public static void sendEmailMessageWithDeletedOpportunities(
-        Map<Account, List<Opportunity>> accountWithRelatedOpportunities,
-        Opportunity currentOpp
-    ) {
-        List<Messaging.Email> emailList = new List<Messaging.Email>();
-
-        Messaging.SingleEmailMessage message = new Messaging.SingleEmailMessage();
-        message.setToAddresses(new List<String>{ UserInfo.getUserEmail() });
-        message.setSubject('Deleting an Account');
-
-        message.setPlainTextBody(
-            mailBodyGenerator(accountWithRelatedOpportunities, currentOpp)
-        );
-        emailList.add(message);
-
-        Messaging.sendEmail(emailList);
-    }
-
-    public static String mailBodyGenerator(
-        Map<Account, List<Opportunity>> accountWithRelatedOpportunities,
-        Opportunity currentOpp
-    ) {
-        String mailBody;
-
-        Integer lineNumber = 1;
-
-        mailBody =
-            'Hi ' +
-            UserInfo.getFirstName() +
-            ', \n \n' +
-            'Due to deletion of Account ' +
-            currentOpp.Account.Name +
-            ' all next related Opportunities were deleted as well: \n \n';
-
-        for (
-            Integer i = 0;
-            i < accountWithRelatedOpportunities.get(currentOpp.Account).size();
-            i++
-        ) {
-            mailBody +=
-                lineNumber +
-                '. ' +
-                accountWithRelatedOpportunities.get(currentOpp.Account)[i].Id +
-                ',' +
-                accountWithRelatedOpportunities.get(currentOpp.Account)[i]
-                    .Name +
-                ',' +
-                accountWithRelatedOpportunities.get(currentOpp.Account)[i]
-                    .Amount +
-                '\n';
-            lineNumber++;
-        }
-
-        mailBody += '\n\n' + 'Best regards,' + '\n\n' + 'Red Tag Service Team.';
-
-        return mailBody;
-    }
-
     public static void beforeDeleteInstructions(List<Account> deletedAccs) {
         List<Opportunity> oppsToDelete = [
             SELECT Id, Name, Amount, AccountId, Account.Name
@@ -77,47 +19,93 @@ public with sharing class AccountTriggerHandler extends TriggerHandler {
             ORDER BY AccountId ASC
         ];
 
-        Map<Account, List<Opportunity>> accountWithRelatedOpportunities = new Map<Account, List<Opportunity>>();
+        String emailSubject = 'Deleting an Account';
+        List<String> toEmailAddresses = new List<String>();
+        toEmailAddresses.add(UserInfo.getUserEmail());
 
-        List<Opportunity> relatedOpportunitiesToAccount = new List<Opportunity>();
+        Map<Account, List<Opportunity>> accountWithRelatedOpportunities = populateMapWithAccountsAndRelatedOppurtunites(deletedAccs, oppsToDelete);
 
-        for (Integer i = 0; i < oppsToDelete.size(); i++) {
-            Opportunity currentOpp = oppsToDelete[i];
+        List<String> mailBodies = mailBodiesAccountsToOppsGenerator(accountWithRelatedOpportunities);
 
-            if (
-                i != 0 &&
-                oppsToDelete[i - 1].accountId != currentOpp.accountId
-            ) {
-                accountWithRelatedOpportunities.put(
-                    oppsToDelete[i - 1].Account,
-                    relatedOpportunitiesToAccount
-                );
-
-                sendEmailMessageWithDeletedOpportunities(
-                    accountWithRelatedOpportunities,
-                    oppsToDelete[i - 1]
-                );
-
-                relatedOpportunitiesToAccount.clear();
-            }
-
-            relatedOpportunitiesToAccount.add(currentOpp);
+        for(String mailBody : mailBodies){
+            EmailService.sendSingleEmailMessage(emailSubject, toEmailAddresses, mailBody);
         }
-
-        accountWithRelatedOpportunities.put(
-            oppsToDelete[(oppsToDelete.size() - 1)].Account,
-            relatedOpportunitiesToAccount
-        );
-        sendEmailMessageWithDeletedOpportunities(
-            accountWithRelatedOpportunities,
-            oppsToDelete[(oppsToDelete.size() - 1)]
-        );
-        relatedOpportunitiesToAccount.clear();
+        
 
         if (!oppsToDelete.isEmpty()) {
             delete oppsToDelete;
         }
     }
+
+    public static List<String> mailBodiesAccountsToOppsGenerator(Map<Account, List<Opportunity>> accountWithRelatedOpportunities) {
+        
+        List<String> mailBodies = new List<String>();
+
+        for(Account key : accountWithRelatedOpportunities.keySet()){
+
+            String mailBody = '';
+
+            mailBody =
+                'Hi ' +
+                UserInfo.getFirstName() +
+                ', \n \n' +
+                'Due to deletion of Account ' +
+                key.Name +
+                ' all next related Opportunities were deleted as well: \n \n';
+
+            Integer lineNumber = 1;
+
+            if(accountWithRelatedOpportunities.get(key).size() != 0){
+
+                for(Opportunity opportunity : accountWithRelatedOpportunities.get(key)){
+                    mailBody +=
+                        lineNumber +
+                        '. ' +
+                        opportunity.Id +
+                        ',' +
+                        opportunity.Name +
+                        ',' +
+                        opportunity.Amount +
+                        '\n';
+                        
+                    lineNumber++;
+                }
+            }
+
+            mailBody += '\n\n' + 'Best regards,' + '\n\n' + 'Red Tag Service Team.';
+            mailBodies.add(mailBody);
+
+        }
+
+        return mailBodies;
+
+    }
+
+    public static Map<Account, List<Opportunity>> populateMapWithAccountsAndRelatedOppurtunites(List<Account> accounts, List<Opportunity> opportunities) {
+        
+        Map<Account,List<Opportunity>> accountWithRelatedOpportunities = new Map<Account, List<Opportunity>>();
+        
+        for(Account account : accounts){
+
+            List<Opportunity> relatedOpportunitiesToAccount = new List<Opportunity>();
+
+            for(Opportunity opportunity : opportunities){
+
+                if(opportunity.AccountId == account.Id){
+                    relatedOpportunitiesToAccount.add(opportunity);
+                }
+
+            }
+
+            accountWithRelatedOpportunities.put(account, relatedOpportunitiesToAccount);
+
+        }
+
+        return accountWithRelatedOpportunities;
+
+    }
+
+
 
     public static void afterInsertInstructions(List<Account> newAccounts) {
         Id accountId;
