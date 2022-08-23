@@ -1,0 +1,116 @@
+<template>
+  <lightning-card title="New Task" icon-name="custom:custom14">
+
+      <lightning-button variant="brand"
+        label="Create new Task"
+        onclick={openModal}
+        class="slds-m-left_x-small">
+      </lightning-button>
+
+      <template if:true={isModalOpen}>
+        
+        <section role="dialog" tabindex="-1" aria-labelledby="modal-heading-01" aria-modal="true" aria-describedby="modal-content-id-1" class="slds-modal slds-fade-in-open">
+          <lightning-card title="New Task" class="slds-modal__container">
+            <lightning-record-edit-form object-api-name="TaskConnector__c">
+
+              <div class="slds-var-p-around_small lgc-bg">
+                  <lightning-input-field
+                    field-name="AssignedTo__c"
+                    label="Assigned To"
+                    onchange={handleAssignedToChange}
+                    required="true"
+                  ></lightning-input-field>
+              </div>  
+        
+              <div class="slds-var-p-around_medium lgc-bg">
+                  <lightning-input
+                      type="date"
+                      label="Due date"
+                      placeholder="type here..."
+                      onchange={handleDateChange}
+                      required="true"
+                  ></lightning-input>
+              </div>
+        
+              <div class="slds-var-p-around_medium lgc-bg">
+                  <lightning-combobox
+                      name="subject"
+                      label="Subject"
+                      placeholder="Select subject"
+                      options={optionsSubject}
+                      onchange={handleSubjectChange}
+                      required="true"
+                  ></lightning-combobox>
+              </div>
+        
+              <div class="slds-var-p-around_medium lgc-bg">
+                  <lightning-combobox
+                      name="priority"
+                      label="Priority"
+                      placeholder="Select priority"
+                      options={optionsPriority}
+                      onchange={handlePriorityChange}
+                      required="true"
+                  ></lightning-combobox>
+              </div>
+        
+              <div class="slds-var-p-around_medium lgc-bg">
+                  <lightning-combobox
+                      name="status"
+                      label="Status"
+                      placeholder="Select status"
+                      options={optionsStatus}
+                      onchange={handleStatusChange}
+                      required="true"
+                  ></lightning-combobox>
+              </div>
+        
+              <div class="slds-var-p-around_medium lgc-bg">
+                  <lightning-textarea
+                    name="comments"
+                    label="Comments"
+                    placeholder="type here..."
+                    onchange={handleCommentsChange}
+                    required="true"
+                  ></lightning-textarea>
+              </div>
+      
+            </lightning-record-edit-form>
+      
+
+              <div class="slds-align_absolute-center">
+
+                
+                <lightning-button class = "slds-p-horizontal_x-small"
+                  variant="destructive"
+                  label="Close winodow"
+                  title="Close winodow"
+                  onclick={closeModal}
+                ></lightning-button>
+      
+                <!-- <lightning-button class = "slds-p-horizontal_x-small"
+                  variant="neutral"
+                  label="Clear fields"
+                  title="Clear fields"
+                  onclick={handleClickCancel}
+                ></lightning-button> -->>
+        
+                <lightning-button class = "slds-p-horizontal_x-small"
+                  variant="brand"
+                  label="Save"
+                  title="Save task"
+                  onclick={handleClick}
+                ></lightning-button>
+        
+              </div>
+
+            
+
+          </lightning-card>
+        </section>
+        
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+      
+    </lightning-card>
+  </template>
